@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Windows 7 Style Calculator</title>
+<style>
+:root{
+--bg:#e9eef3;
+--panel:#cfd8e3;
+--btn:#f3f4f6;
+--btn-dark:#d6dbe2;
+--accent:#dfe9ff;
+--shadow: rgba(0,0,0,0.18);
+--width: 320px;
+}
+html,body{height:100%;}
+body{
+background: linear-gradient(#dde6ef,#d7dfe8);
+display:flex;align-items:center;justify-content:center;
+font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+margin:0;padding:20px;
+}
+.calc-window{
+width:var(--width);
+background:linear-gradient(#f7f8fa,#e9eef3);
+border-radius:8px;
+box-shadow:0 6px 20px var(--shadow);
+padding:12px;
+border:1px solid #aeb7c3;
+}
+.titlebar{
+height:28px;
+display:flex;align-items:center;gap:8px;
+color:#333;font-size:13px;margin-bottom:8px;
+}
+.menu{font-weight:600;color:#444}
+.display-area{
+background: linear-gradient(#f7fbff,#e9f0f8);
+border-radius:6px;
+border:1px solid #bec8d4;
+padding:10px 8px; margin-bottom:10px;
+box-shadow: inset 0 2px 0 rgba(255,255,255,0.6);
+}
+.display-top{
+color:#7b8793;font-size:12px;text-align:left;margin-bottom:6px;
+}
+.display{
+font-size:24px;text-align:right;color:#0b1220;font-weight:600;
+min-height:30px;white-space:nowrap;overflow-x:auto;
+}
+
+.keys{
+display:grid;grid-template-columns: repeat(5,1fr);gap:8px;
+}
+
+button.key{
+height:44px;border-radius:6px;border:1px solid #bfc8d2;
+background: linear-gradient(#fbfdfe,#e9eef3);
+box-shadow: 0 2px 0 rgba(255,255,255,0.8), inset 0 1px 0 rgba(255,255,255,0.6);
+font-size:15px;cursor:pointer;color:#111;
+}
+button.key:active{transform:translateY(1px);}
+
+button.memory{background:linear-gradient(#fdf7ef,#f6e6ce);}
+button.func{background:linear-gradient(#f7f7f8,#e3e5ea);}
+button.op{background:linear-gradient(#ebf4ff,#d9eaff);}
+
+/* wide buttons for 0 and = */
+.span-2{grid-column: span 2;}
+
+/* small labels like +/- should be slightly smaller */
+.small{font-size:14px}
+
+/* layout tweaks to match Windows 7 proportions */
+.row-gap{margin-bottom:6px}
+
+/* make buttons look inset for certain controls */
+.key.back{background:linear-gradient(#f3f6fb,#dce6f4);}
+
+/* responsive */
+@media (max-width:380px){
+:root{--width:300px}
+.calc-window{width:calc(var(--width));}
+button.key{height:42px}
+.display{font-size:20px}
+}
+</style>
+</head>
+<body>
+<div class="calc-window" role="application" aria-label="Calculator">
+<div class="titlebar">
+<div class="menu">View</div>
+<div class="menu">Edit</div>
+<div class="menu">Help</div>
+</div>
+
+<div class="display-area">
+<div class="display-top">Standard</div>
+<div class="display" id="display">0</div>
+</div>
+
+<div class="keys">
+<!-- Memory row (5 buttons) -->
+<button class="key memory" data-action="MC">MC</button>
+<button class="key memory" data-action="MR">MR</button>
+<button class="key memory" data-action="MS">MS</button>
+<button class="key memory" data-action="M+">M+</button>
+<button class="key memory" data-action="M-">M-</button>
+
+<!-- second row: back, CE, C, +/- , sqrt -->
+<button class="key func" data-action="back">←</button>
+<button class="key func" data-action="CE">CE</button>
+<button class="key func" data-action="C">C</button>
+<button class="key func" data-action="plusminus">±</button>
+<button class="key func" data-action="sqrt">√</button>
+
+<!-- third row: digits 7 8 9 % / -->
+<button class="key" data-action="7">7</button>
+<button class="key" data-action="8">8</button>
+<button class="key" data-action="9">9</button>
+<button class="key func" data-action="percent">%</button>
+<button class="key op" data-action="/">÷</button>
+
+<!-- fourth row: 4 5 6 * -->
+<button class="key" data-action="4">4</button>
+<button class="key" data-action="5">5</button>
+<button class="key" data-action="6">6</button>
+<button class="key func" data-action="recip">1/x</button>
+<button class="key op" data-action="*">×</button>
+
+<!-- fifth row: 1 2 3 - -->
+<button class="key" data-action="1">1</button>
+<button class="key" data-action="2">2</button>
+<button class="key" data-action="3">3</button>
+<div></div>
+<button class="key op" data-action="-">−</button>
+
+<!-- sixth row: 0 . = + -->
+<button class="key span-2" data-action="0">0</button>
+<button class="key" data-action=".">.</button>
+<button class="key op" data-action="=">=</button>
+<button class="key op" data-action="+">+</button>
+</div>
+</div>
+
+<script>
+(function(){
+const displayEl = document.getElementById('display');
+const keys = document.querySelectorAll('.key');
+let current = '0';
+let previous = null;
+let operator = null;
+let waitingForNew = false;
+let memory = null;
+
+function updateDisplay(){
+displayEl.textContent = String(current);
+}
+
+function inputDigit(d){
+if(waitingForNew){
+current = d;
+waitingForNew = false;
+} else {
+if(current === '0') current = d;
+else current += d;
+}
+updateDisplay();
+}
+
+function inputDot(){
+if(waitingForNew){
+current = '0.'; waitingForNew = false; updateDisplay(); return;
+}
+if(!current.includes('.')){ current += '.'; updateDisplay(); }
+}
+
+function clearAll(){ current = '0'; previous = null; operator = null; waitingForNew = false; updateDisplay(); }
+function clearEntry(){ current = '0'; updateDisplay(); }
+function backspace(){
+if(waitingForNew) return;
+if(current.length <=1){ current = '0'; }
+else current = current.slice(0,-1);
+updateDisplay();
+}
+
+function toggleSign(){
+if(current === '0') return;
+if(current.startsWith('-')) current = current.slice(1); else current = '-' + current;
+updateDisplay();
+}
+
+function sqrt(){
+let num = parseFloat(current);
+if(num < 0){ current = 'Error'; updateDisplay(); waitingForNew = true; return; }
+current = String(Math.sqrt(num)); updateDisplay(); waitingForNew = true;
+}
+
+function reciprocal(){
+let num = parseFloat(current);
+if(num === 0){ current = 'Error'; updateDisplay(); waitingForNew = true; return; }
+current = String(1/num); updateDisplay(); waitingForNew = true;
+}
+
+function percent(){
+let num = parseFloat(current);
+if(previous !== null && operator){
+// behave like Windows: percent of previous
+current = String((parseFloat(previous) * num) / 100);
+} else {
+current = String(num/100);
+}
+updateDisplay();
+waitingForNew = true;
+}
+
+function handleMemory(action){
+switch(action){
+case 'MC': memory = null; break;
+case 'MR': if(memory !== null){ current = String(memory); updateDisplay(); waitingForNew=true } break;
+case 'MS': memory = parseFloat(current); break;
+case 'M+': memory = (memory || 0) + parseFloat(current); break;
+case 'M-': memory = (memory || 0) - parseFloat(current); break;
+}
+}
+
+function performOperation(nextOp){
+const inputValue = parseFloat(current);
+if(previous === null){
+previous = String(inputValue);
+} else if(operator){
+const prev = parseFloat(previous);
+let result = prev;
+switch(operator){
+case '+': result = prev + inputValue; break;
+case '-': result = prev - inputValue; break;
+case '*': result = prev * inputValue; break;
+case '/': result = inputValue === 0 ? 'Error' : prev / inputValue; break;
+}
+previous = String(result);
+current = String(result);
+}
+operator = nextOp;
+waitingForNew = true;
+updateDisplay();
+}
+
+function calculate(){
+if(operator === null || previous === null) return;
+performOperation(null);
+operator = null;
+previous = null;
+waitingForNew = true;
+}
+
+keys.forEach(k=>k.addEventListener('click', e=>{
+const action = k.getAttribute('data-action');
+if(!action) return;
+if(action >= '0' && action <= '9') return inputDigit(action);
+switch(action){
+case '.': inputDot(); break;
+case 'C': clearAll(); break;
+case 'CE': clearEntry(); break;
+case 'back': backspace(); break;
+case 'plusminus': toggleSign(); break;
+case 'sqrt': sqrt(); break;
+case 'recip': reciprocal(); break;
+case '%': percent(); break;
+case '%': percent(); break;
+case 'MC': case 'MR': case 'MS': case 'M+': case 'M-': handleMemory(action); break;
+case '+': case '-': case '*': case '/': performOperation(action); break;
+case '=': calculate(); break;
+}
+}));
+
+// keyboard support
+document.addEventListener('keydown', (ev)=>{
+if(ev.key >= '0' && ev.key <= '9') inputDigit(ev.key);
+if(ev.key === '.') inputDot();
+if(ev.key === 'Backspace') backspace();
+if(ev.key === 'Enter' || ev.key === '=') calculate();
+if(ev.key === '+') performOperation('+');
+if(ev.key === '-') performOperation('-');
+if(ev.key === '*') performOperation('*');
+if(ev.key === '/') performOperation('/');
+if(ev.key.toLowerCase() === 'c') clearAll();
+});
+
+updateDisplay();
+})();
+</script>
+</body>
+</html>
